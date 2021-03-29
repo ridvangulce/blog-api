@@ -1,7 +1,7 @@
 #!/usr/bin/python3
-from flask import Flask, request, redirect, url_for, render_template, jsonify, render_template, jsonify
+from flask import Flask, request, redirect, url_for, render_template, jsonify
 from flask_restful import Api
-from flask_sqlalchemy import SQLAlchemy, Model
+from flask_sqlalchemy import SQLAlchemy
 import secrets
 from flask_marshmallow import Marshmallow
 from sqlalchemy import create_engine
@@ -60,6 +60,10 @@ def delete_user(user_id):
     db.session.commit()
 
 
+def user_serializer(todo):
+    return {'id': todo.id, 'name': todo.name, 'email': todo.email, }
+
+
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), unique=True, nullable=False)
@@ -101,7 +105,7 @@ def api():
         for row in records:
             print("name: ", row['name'], "email: ", row['email'], "id:", row['id'])
 
-        return jsonify("name: ", row['name'], "email: ", row['email'], "id:", row['id'])
+        return jsonify([*map(user_serializer, User.query.all())])
 
 
 if __name__ == "__main__":
