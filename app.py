@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-from flask import Flask, request, redirect, url_for, render_template, jsonify
+from flask import Flask, request, jsonify
 from flask_restful import Api
 from flask_sqlalchemy import SQLAlchemy
 import secrets
@@ -41,27 +41,14 @@ def create_user():
     email = request.form.get("email")
     user = User(name, email)
     db.session.add(user)
-    db.commit
-
-
-def update_user(user_id, data):
-    user = User.query.filter(User.id == user_id).first()
-    user.email = data.get('email')
-    user.password = data.get('name')
-
-    db.session.add(user)
     db.session.commit()
 
 
-def delete_user(user_id):
-    user = User.query.filter(User.id == user_id).first()
-
-    db.session.delete(user)
-    db.session.commit()
-
-
-def user_serializer(todo):
-    return {'id': todo.id, 'name': todo.name, 'email': todo.email, }
+def user_serializer(user):
+    return {'id': user.id,
+            'name': user.name,
+            'email': user.email,
+            }
 
 
 class User(db.Model):
@@ -87,25 +74,14 @@ user_schema = UserSchema()
 users_schema = UserSchema(many=True)
 
 
-@app.route('/login', methods=['POST', 'GET'])
-def login():
-    if request.method == 'POST':
-
-        return redirect(url_for("api"))
-
-    else:
-        return render_template("index.html")
-
-
 @app.route("/api", methods=['GET'])
 def api():
-    with engine.connect() as connection:
-        result = connection.execute("SELECT * FROM sys.user")
-        records = result.fetchall()
-        for row in records:
-            print("name: ", row['name'], "email: ", row['email'], "id:", row['id'])
+    return jsonify([*map(user_serializer, User.query.all())])
 
-        return jsonify([*map(user_serializer, User.query.all())])
+
+@app.route("/api", methods=['POST'])
+def postApi():
+    return "hello"
 
 
 if __name__ == "__main__":
