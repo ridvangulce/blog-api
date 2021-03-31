@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, json
 from flask_restful import Api
 from flask_sqlalchemy import SQLAlchemy
 import secrets
@@ -34,14 +34,6 @@ with engine.connect() as connection:
 def api_response():
     if request.method == 'POST':
         return jsonify(**request.json)
-
-
-def create_user():
-    name = request.form.get("name")
-    email = request.form.get("email")
-    user = User(name, email)
-    db.session.add(user)
-    db.session.commit()
 
 
 def user_serializer(user):
@@ -79,9 +71,14 @@ def api():
     return jsonify([*map(user_serializer, User.query.all())])
 
 
-@app.route("/api", methods=['POST'])
-def postApi():
-    return "hello"
+@app.route("/api/create", methods=['POST'])
+def create():
+    request_data = json.loads(request.data)
+    print(request_data)
+    addUser = User(name=request_data['name'], email=request_data['email'])
+    db.session.add(addUser)
+    db.session.commit()
+    return "User Created"
 
 
 if __name__ == "__main__":
