@@ -1,10 +1,12 @@
 #!/usr/bin/python3
 from flask import Flask, request, jsonify, json
 from flask_restful import Api
+from flask_security import UserMixin
 from flask_sqlalchemy import SQLAlchemy
 import secrets
 from flask_marshmallow import Marshmallow
 from sqlalchemy import create_engine
+import bcrypt
 
 engine = create_engine(
     "mysql+pymysql://{0}:{1}@{2}/{3}".format(secrets.dbuser, secrets.dbpass, secrets.dbhost, secrets.dbname))
@@ -40,17 +42,20 @@ def user_serializer(user):
     return {'id': user.id,
             'name': user.name,
             'email': user.email,
+            'password': user.password
             }
 
 
-class User(db.Model):
+class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(80), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
+    name = db.Column(db.String(80), unique=True, )
+    email = db.Column(db.String(120), unique=True, )
+    password = db.Column(db.String(120), )
 
-    def __init__(self, name, email):
+    def __init__(self, name, email, password):
         self.name = name
         self.email = email
+        self.password = password
         super(User, self).__init__()
 
     def __repr__(self):
@@ -59,7 +64,7 @@ class User(db.Model):
 
 class UserSchema(ma.Schema):
     class Meta:
-        fields = ("id", "name", "email")
+        fields = ("id", "name", "email", "password")
 
 
 user_schema = UserSchema()
@@ -71,14 +76,29 @@ def api():
     return jsonify([*map(user_serializer, User.query.all())])
 
 
-@app.route("/api/create", methods=['POST'])
-def create():
+@app.route("/register", methods=['POST'])
+def register():
     request_data = json.loads(request.data)
     print(request_data)
-    addUser = User(name=request_data['name'], email=request_data['email'])
+    addUser = User(name=request_data['name'], email=request_data['email'], password=request_data['password'])
     db.session.add(addUser)
     db.session.commit()
     return "User Created"
+
+
+@app.route("/login", methods=['POST', 'GET'])
+def login():
+    name = request.json.get('name', None)
+    password = request.json.get('password', None)
+    if not name:
+        return " name is missing", 400
+    if not password:
+        return "password is missing", 400
+    user = User.query.filter_by(name=name).first()
+    if not user:
+        return "User Not Found", 404
+    if bcrypt.checkpw(password=user.password):
+        return f"Welcome Back {name}"
 
 
 if __name__ == "__main__":
