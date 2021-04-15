@@ -17,10 +17,10 @@ conn = "mysql+pymysql://{0}:{1}@{2}/{3}".format(secrets.dbuser, secrets.dbpass, 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = conn
 app.config['SECRET_KEY'] = 'SuperSecretKey'
-
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 api = Api()
-
 db = SQLAlchemy(app)
+db.init_app(app)
 ma = Marshmallow(app)
 
 
@@ -83,6 +83,12 @@ def register():
     name = request.json.get('name', None)
     email = request.json.get('email', None)
     password = request.json.get('password', None)
+    if not name:
+        return "Missing Name"
+    if not email:
+        return "Missing Email"
+    if not password:
+        return "Missing Password"
     hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
     addUser = User(name=name, email=email, password=hashed)
     db.session.add(addUser)
@@ -93,20 +99,26 @@ def register():
     return "User Created"
 
 
-@app.route("/login", methods=['POST', 'GET'])
+@app.route("/login", methods=['POST'])
 def login():
-    request_data = json.loads(request.data)
-    name = User(name=request_data['name'])
-    password = User(password=request_data['password'])
+    name = request.json.get('name', None)
+    password = request.json.get('password', None)
+    hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+
     if not name:
-        return " name is missing", 400
+        return "Missing Username", 400
     if not password:
-        return "password is missing", 400
+        return "Missing Password", 400
+
     user = User.query.filter_by(name=name).first()
     if not user:
         return "User Not Found", 404
-    if bcrypt.checkpw(password=user.password):
-        return f"Welcome Back {name}"
+
+    if bcrypt.checkpw(password.encode('utf-8'), hashed):
+        return "Welcome Back"
+
+    else:
+        return "Wrong Password"
 
 
 if __name__ == "__main__":
