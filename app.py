@@ -1,4 +1,6 @@
 #!/usr/bin/python3
+import hashlib
+from sqlalchemy.orm.exc import UnmappedInstanceError
 from flask import Flask, request, jsonify, json
 from flask_restful import Api
 from flask_security import UserMixin
@@ -78,9 +80,14 @@ def api():
 
 @app.route("/register", methods=['POST'])
 def register():
-    request_data = json.loads(request.data)
-    print(request_data)
-    addUser = User(name=request_data['name'], email=request_data['email'], password=request_data['password'])
+    name = request.json.get('name', None)
+    email = request.json.get('email', None)
+    password = request.json.get('password', None)
+    hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+    addUser = User(name=name, email=email, password=hashed)
+    db.session.add(addUser)
+    db.session.commit()
+
     db.session.add(addUser)
     db.session.commit()
     return "User Created"
@@ -88,8 +95,9 @@ def register():
 
 @app.route("/login", methods=['POST', 'GET'])
 def login():
-    name = request.json.get('name', None)
-    password = request.json.get('password', None)
+    request_data = json.loads(request.data)
+    name = User(name=request_data['name'])
+    password = User(password=request_data['password'])
     if not name:
         return " name is missing", 400
     if not password:
