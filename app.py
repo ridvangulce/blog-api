@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 import hashlib
-from sqlalchemy.orm.exc import UnmappedInstanceError
-from flask import Flask, request, jsonify, json
+from flask import Flask, request, jsonify
 from flask_restful import Api
 from flask_security import UserMixin
 from flask_sqlalchemy import SQLAlchemy
@@ -9,19 +8,25 @@ import secrets
 from flask_marshmallow import Marshmallow
 from sqlalchemy import create_engine
 import bcrypt
+from flask_jwt_extended import create_access_token, JWTManager, jwt_required, get_jwt_identity
+from sqlalchemy.orm import sessionmaker
 
 engine = create_engine(
     "mysql+pymysql://{0}:{1}@{2}/{3}".format(secrets.dbuser, secrets.dbpass, secrets.dbhost, secrets.dbname))
 conn = "mysql+pymysql://{0}:{1}@{2}/{3}".format(secrets.dbuser, secrets.dbpass, secrets.dbhost, secrets.dbname)
 
 app = Flask(__name__)
+app.secret_key = b'7ash2i%5pk2159=p4!12op44221*rwWQcs'
+app.config["JWT_SECRET_KEY"] = "1823h2#1i123l!'d#s8h89iIOD2#£j"
 app.config['SQLALCHEMY_DATABASE_URI'] = conn
-app.config['SECRET_KEY'] = 'SuperSecretKey'
+app.config['SECRET_KEY'] = '2o1£21ıoj2£#31ıj1#23l)Da9djs!e'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 api = Api()
 db = SQLAlchemy(app)
 db.init_app(app)
 ma = Marshmallow(app)
+jwt = JWTManager(app)
+Session = sessionmaker(bind=engine)
 
 
 def create_app():
@@ -53,11 +58,13 @@ class User(db.Model, UserMixin):
     name = db.Column(db.String(80), unique=True, )
     email = db.Column(db.String(120), unique=True, )
     password = db.Column(db.String(120), )
+    token = db.Column(db.String(120), )
 
-    def __init__(self, name, email, password):
+    def __init__(self, name, email, password, token):
         self.name = name
         self.email = email
         self.password = password
+        self.token = token
         super(User, self).__init__()
 
     def __repr__(self):
@@ -66,7 +73,7 @@ class User(db.Model, UserMixin):
 
 class UserSchema(ma.Schema):
     class Meta:
-        fields = ("id", "name", "email", "password")
+        fields = ("id", "name", "email", "password", "token")
 
 
 user_schema = UserSchema()
@@ -78,33 +85,33 @@ def api():
     return jsonify([*map(user_serializer, User.query.all())])
 
 
-@app.route("/register", methods=['POST'])
+@app.route("/register", methods=['POST', 'GET'])
 def register():
     name = request.json.get('name', None)
     email = request.json.get('email', None)
     password = request.json.get('password', None)
+    token = request.json.get('token', None)
+
     if not name:
         return "Missing Name"
     if not email:
         return "Missing Email"
     if not password:
         return "Missing Password"
+    session = Session()
+    access_token = create_access_token(identity=name)
     hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
-    addUser = User(name=name, email=email, password=hashed)
-    db.session.add(addUser)
-    db.session.commit()
-
+    addUser = User(name=name, email=email, password=hashed, token=access_token)
     db.session.add(addUser)
     db.session.commit()
     return "User Created"
 
 
-@app.route("/login", methods=['POST'])
+@app.route("/login", methods=['POST', 'GET'])
 def login():
     name = request.json.get('name', None)
     password = request.json.get('password', None)
     hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
-
     if not name:
         return "Missing Username", 400
     if not password:
@@ -119,6 +126,14 @@ def login():
 
     else:
         return "Wrong Password"
+
+
+@app.route("/protected", methods=["GET"])
+@jwt_required()
+def protected():
+    # Access the identity of the current user with get_jwt_identity
+    current_user = get_jwt_identity()
+    return jsonify(logged_in_as=current_user), 200
 
 
 if __name__ == "__main__":
