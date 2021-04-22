@@ -1,13 +1,12 @@
 #!/usr/bin/python3
-import hashlib
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, redirect, url_for
 from flask_restful import Api
 from flask_security import UserMixin
 from flask_sqlalchemy import SQLAlchemy
 import secrets
 from flask_marshmallow import Marshmallow
 from sqlalchemy import create_engine
-import bcrypt
+from flask_bcrypt import Bcrypt
 from flask_jwt_extended import create_access_token, JWTManager, jwt_required, get_jwt_identity
 from sqlalchemy.orm import sessionmaker
 
@@ -27,6 +26,7 @@ db.init_app(app)
 ma = Marshmallow(app)
 jwt = JWTManager(app)
 Session = sessionmaker(bind=engine)
+bcrypt = Bcrypt(app)
 
 
 def create_app():
@@ -90,7 +90,6 @@ def register():
     name = request.json.get('name', None)
     email = request.json.get('email', None)
     password = request.json.get('password', None)
-    token = request.json.get('token', None)
 
     if not name:
         return "Missing Name"
@@ -98,9 +97,8 @@ def register():
         return "Missing Email"
     if not password:
         return "Missing Password"
-    session = Session()
     access_token = create_access_token(identity=name)
-    hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+    hashed = bcrypt.generate_password_hash(password.encode('utf-8'))
     addUser = User(name=name, email=email, password=hashed, token=access_token)
     db.session.add(addUser)
     db.session.commit()
@@ -111,21 +109,26 @@ def register():
 def login():
     name = request.json.get('name', None)
     password = request.json.get('password', None)
-    hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
     if not name:
         return "Missing Username", 400
     if not password:
         return "Missing Password", 400
-
     user = User.query.filter_by(name=name).first()
+    print(user)
+
     if not user:
         return "User Not Found", 404
 
-    if bcrypt.checkpw(password.encode('utf-8'), hashed):
+    if user and bcrypt.check_password_hash(user.password, password):
         return "Welcome Back"
 
     else:
         return "Wrong Password"
+
+
+@app.route("/welcome", methods=["GET", "POST"])
+def welcome():
+    return "Welcome"
 
 
 @app.route("/protected", methods=["GET"])
