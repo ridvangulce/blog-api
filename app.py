@@ -42,7 +42,7 @@ def create_app():
 with engine.connect() as connection:
     result = connection.execute("SELECT * FROM sys.user")
     for row in result:
-        print("name: ", row['name'], "email: ", row['email'], "id:", row['id'])
+        print("name: ", row['name'], "email: ", row['email'], "id:", row['id'], "age:", row['age'])
 
 
 def api_response():
@@ -54,7 +54,8 @@ def user_serializer(user):
     return {'id': user.id,
             'name': user.name,
             'email': user.email,
-            'password': user.password
+            'password': user.password,
+            'age': user.age
             }
 
 
@@ -63,22 +64,22 @@ class User(db.Model, UserMixin):
     name = db.Column(db.String(80), unique=True, )
     email = db.Column(db.String(120), unique=True, )
     password = db.Column(db.String(120), )
-    token = db.Column(db.String(120), )
+    age = db.Column(db.Integer)
 
-    def __init__(self, name, email, password, token):
+    def __init__(self, name, email, password, age):
         self.name = name
         self.email = email
         self.password = password
-        self.token = token
+        self.age = age
         super(User, self).__init__()
 
     def __repr__(self):
-        return '<User % s > ' % self.email
+        return '<User % s > ' % self.email, self.age
 
 
 class UserSchema(ma.Schema):
     class Meta:
-        fields = ("id", "name", "email", "password", "token")
+        fields = ("id", "name", "email", "password", "age")
 
 
 user_schema = UserSchema()
@@ -87,6 +88,7 @@ users_schema = UserSchema(many=True)
 
 @app.route("/api", methods=['GET'])
 def api():
+
     return jsonify([*map(user_serializer, User.query.all())])
 
 
@@ -95,18 +97,20 @@ def register():
     if request.method == "POST":
         name = request.json.get('name', None)
         email = request.json.get('email', None)
+        age = request.json.get('age')
         password = request.json.get('password', None)
-
         if not name:
             return "Missing Name"
         if not email:
             return "Missing Email"
         if not password:
             return "Missing Password"
+        if not age:
+            return "Missing Age"
         hashed = bcrypt.generate_password_hash(password.encode('utf-8'))
         session["2o1£21ıoj2£#31ı12k3130o210*321"] = name
-        access_token = create_access_token(identity=name)
-        addUser = User(name=name, email=email, password=hashed, token=access_token)
+        addUser = User(name=name, email=email, password=hashed, age=age)
+        create_access_token(identity=name)
         db.session.add(addUser)
         db.session.commit()
         return "user created"
@@ -144,7 +148,6 @@ def welcome():
 @app.route("/protected", methods=["GET"])
 @jwt_required()
 def protected():
-    # Access the identity of the current user with get_jwt_identity
     current_user = get_jwt_identity()
     return jsonify(logged_in_as=current_user), 200
 
