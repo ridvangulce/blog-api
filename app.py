@@ -82,7 +82,6 @@ class UserSchema(ma.Schema):
         fields = ("id", "name", "email", "password", "age")
 
 
-user_schema = UserSchema()
 users_schema = UserSchema(many=True)
 
 
@@ -139,7 +138,7 @@ def login():
             return "Wrong Password"
 
 
-@app.route("/logout", methods=["GET", "POST"])
+@app.route("/profile", methods=["GET", "POST"])
 def welcome():
     session.pop('2o1£21ıoj2£#31ı12k3130o210*321', None)
     return "Logout Successfully"
