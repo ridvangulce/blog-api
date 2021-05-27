@@ -11,10 +11,12 @@ from sqlalchemy import create_engine
 from flask_bcrypt import Bcrypt
 from sqlalchemy.orm import sessionmaker
 from flask_jwt_extended import JWTManager, create_access_token, get_jwt_identity, jwt_required
+from flask_cors import CORS, cross_origin
 
 engine = create_engine(
     "mysql+pymysql://{0}:{1}@{2}/{3}".format(secrets.dbuser, secrets.dbpass, secrets.dbhost, secrets.dbname))
 conn = "mysql+pymysql://{0}:{1}@{2}/{3}".format(secrets.dbuser, secrets.dbpass, secrets.dbhost, secrets.dbname)
+
 app = Flask(__name__)
 app.secret_key = b'7ash2i%5pk2159=p4!12op44221321*3123213313rwWQcs'
 app.config['SQLALCHEMY_DATABASE_URI'] = conn
@@ -22,6 +24,7 @@ app.config['SECRET_KEY'] = '2o1£21ıoj2£#31ıj1#23l)Da9djs!e'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SESSION_TYPE'] = 'sqlalchemy'
 app.config["JWT_SECRET_KEY"] = "2o1£21ıoj2£#31ı12k3130o210*321"
+app.config['SESSION_SQLALCHEMY_TABLE'] = 'sessions'
 
 jwt = JWTManager(app)
 api = Api()
@@ -31,7 +34,7 @@ db.init_app(app)
 ma = Marshmallow(app)
 bcrypt = Bcrypt(app)
 Session = sessionmaker()
-Session.configure(bind=engine)
+CORS(app)
 
 
 def create_app():
@@ -45,18 +48,25 @@ with engine.connect() as connection:
         print("name: ", row['name'], "email: ", row['email'], "id:", row['id'], "age:", row['age'])
 
 
-def api_response():
+def api():
     if request.method == 'POST':
         return jsonify(**request.json)
 
 
-def user_serializer(user):
+def user_serializer(user, post):
     return {'id': user.id,
             'name': user.name,
             'email': user.email,
             'password': user.password,
-            'age': user.age
+            'age': user.age,
+            'post': post.post
             }
+
+
+with engine.connect() as connection:
+    result = connection.execute("SELECT * FROM sys.post")
+    for row in result:
+        print("post", row['post'])
 
 
 class User(db.Model, UserMixin):
@@ -77,9 +87,21 @@ class User(db.Model, UserMixin):
         return '<User % s > ' % self.email, self.age
 
 
+class Post(db.Model, UserMixin):
+    id = db.Column(db.Integer, primary_key=True)
+    post = db.Column(db.String(300))
+
+    def __init__(self, post):
+        self.post = post
+        super(Post, self).__init__()
+
+    def __repr__(self):
+        return '<User % s > ' % self.post
+
+
 class UserSchema(ma.Schema):
     class Meta:
-        fields = ("id", "name", "email", "password", "age")
+        fields = ["id", "name", "email", "password", "age", "post", ]
 
 
 users_schema = UserSchema(many=True)
@@ -87,8 +109,7 @@ users_schema = UserSchema(many=True)
 
 @app.route("/api", methods=['GET'])
 def api():
-
-    return jsonify([*map(user_serializer, User.query.all())])
+    return jsonify([*map(user_serializer, User.query.all(), Post.query.all())])
 
 
 @app.route("/register", methods=['POST', 'GET'])
@@ -107,8 +128,9 @@ def register():
         if not age:
             return "Missing Age"
         hashed = bcrypt.generate_password_hash(password.encode('utf-8'))
-        session["2o1£21ıoj2£#31ı12k3130o210*321"] = name
         addUser = User(name=name, email=email, password=hashed, age=age)
+        print(session['user'])
+
         create_access_token(identity=name)
         db.session.add(addUser)
         db.session.commit()
@@ -122,7 +144,7 @@ def login():
         password = request.json.get('password', None)
         bcrypt.generate_password_hash(password.encode('utf-8'))
         user = User.query.filter_by(name=name).first()
-        session["2o1£21ıoj2£#31ı12k3130o210*321"] = name
+        session["user"] = name
         create_access_token(identity=name)
         if not name:
             return "Missing Username", 400
@@ -130,18 +152,40 @@ def login():
             return "Missing Password", 400
         if not user:
             return "User Not Found", 404
-
         if user and bcrypt.check_password_hash(user.password, password):
             return "Welcome"
-
         else:
-            return "Wrong Password"
+            return "Wrong Username or Password"
 
 
-@app.route("/profile", methods=["GET", "POST"])
-def welcome():
-    session.pop('2o1£21ıoj2£#31ı12k3130o210*321', None)
-    return "Logout Successfully"
+@app.route("/profile", methods=['POST'])
+@cross_origin()
+def post():
+    if request.method == 'POST':
+        if "user" in session:
+            name = session['user']
+            post = request.json.get('post', None)
+            if not post:
+                return "Write Something"
+            addPost = Post(post=post)
+            db.session.add(addPost)
+            db.session.commit()
+            return 'Posted as ' + name
+    return "Posted"
+
+
+@app.route("/profile", methods=['GET'])
+def check():
+    if request.method == 'GET':
+        if session == session['user']:
+            return "same_session"
+    return "same_session"
+
+
+@app.route("/logout", methods=['GET', 'POST'])
+def logout():
+    session.pop('user', None)
+    return "Logout"
 
 
 @app.route("/protected", methods=["GET"])
