@@ -158,7 +158,7 @@ def login():
             return "Wrong Username or Password"
 
 
-@app.route("/profile", methods=['POST'])
+@app.route("/home", methods=['POST'])
 @cross_origin()
 def post():
     if request.method == 'POST':
@@ -174,7 +174,7 @@ def post():
     return "Posted"
 
 
-@app.route("/profile", methods=['GET'])
+@app.route("/home", methods=['GET'])
 def check():
     if request.method == 'GET':
         if session == session['user']:
